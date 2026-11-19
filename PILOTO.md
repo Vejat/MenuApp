@@ -2,7 +2,7 @@
 
 La versión para alojamiento está preparada y probada en Docker. Falta publicar la web y la API, crear la base de datos del piloto y apuntar el APK a la dirección pública.
 
-**Estado actual:** GitHub CLI ya está autenticado. El código se está preparando en Git local. Render está abierto en Edge. Queda autorizar la subida al repositorio privado y, cuando exista, dar a Render acceso a ese repositorio.
+**Estado actual:** el código está en el repositorio privado [Vejat/MenuApp](https://github.com/Vejat/MenuApp), en la rama `main`. Falta dar a Render acceso a ese repositorio y revisar el costo antes de activar los recursos.
 
 ## 1. Lo que te toca ahora
 
@@ -14,13 +14,13 @@ La versión para alojamiento está preparada y probada en Docker. Falta publicar
 
    Completa el inicio de sesión en el navegador. Yo puedo comprobar la conexión y crear el repositorio privado. [Guía de GitHub CLI](https://cli.github.com/manual/gh_auth_login)
 
-2. **Entra a Render** con la cuenta que será dueña del piloto. Si quieres que yo gestione el despliegue desde esta conversación, instala y conecta la integración de Render. [Panel de Render](https://dashboard.render.com/)
+2. **Conecta el repositorio a Render.** En Edge, abre el panel de Render y selecciona **New → Blueprint**. Si te pide conectar GitHub, autoriza el acceso solo a **Vejat/MenuApp**. Selecciona ese repositorio y deja abierta la pantalla que muestra los recursos del Blueprint. [Panel de Render](https://dashboard.render.com/)
 
-3. **Avísame cuando termines.** Puedes escribir «GitHub listo, Render listo. Autorizo subir MenuApp a un repositorio privado». Completa los inicios de sesión en el navegador. Contraseñas, tokens y códigos de verificación se quedan fuera del chat.
+3. **Avísame cuando veas los recursos del Blueprint.** Revisaremos el costo de la API y PostgreSQL antes de pulsar **Deploy Blueprint**. Contraseñas, tokens y códigos de verificación se quedan fuera del chat.
 
 ## 2. Lo que haré yo
 
-1. Revisaré los archivos que se subirán, crearé el repositorio privado y subiré el código. La base de pruebas del PC y las contraseñas locales quedan fuera.
+1. **Completado.** Revisé y subí el código al repositorio privado. La base de pruebas del PC y las contraseñas locales quedaron fuera.
 2. Prepararé el despliegue con [render.yaml](render.yaml) para que Render construya la web y la API, conecte un PostgreSQL privado y aplique la migración. Verificaré el precio del servicio y de la base para que apruebes el gasto antes de activarlos.
 3. Una vez publicado, verificaré la dirección HTTPS, compilaré el APK para esa dirección e instalaré la actualización cuando el Moto esté conectado. Configuraré las cuentas individuales del personal y cargaré la carta cuando tengamos los datos del local.
 

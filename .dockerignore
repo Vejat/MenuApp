@@ -1,0 +1,15 @@
+.git
+.agents
+.codex
+.dart_tool
+.idea
+.flutter-plugins-dependencies
+api/node_modules
+build
+design-preview
+android
+ios
+test
+**/.env*
+**/*.jks
+**/*.keystore

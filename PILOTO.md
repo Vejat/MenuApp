@@ -28,6 +28,7 @@ La versión para alojamiento está preparada y probada en Docker. Falta publicar
 
 - **Autorizar a Render a leer el repositorio privado.** Te indicaré su nombre una vez creado. Si GitHub pide acceso, selecciona solo el repositorio de MenuApp. [Conectar GitHub a Render](https://render.com/docs/git-provider)
 - **Aprobar el costo.** El restaurante prueba gratis. Nosotros cubrimos los recursos contratados. Los 14 días del piloto son nuestro acuerdo con el local. Render sigue cobrando mientras mantengamos los recursos activos.
+- **Presupuesto de referencia.** El Blueprint usa una instancia web de USD 7 al mes y PostgreSQL de USD 6 al mes con 1 GB de disco. Presupuesta hasta USD 0,30 mensuales para ese almacenamiento y revisa el importe en Render. Con 14 días de recursos activos, el costo base estimado es de unos USD 6,20, antes de impuestos o excedentes de uso. [Precios de Render](https://render.com/pricing)
 - **Preparar el ensayo en el local.** Necesitaremos la carta, los precios, el número de mesas del piloto y los nombres de quienes tendrán acceso. Para la prueba final, conecta el Moto cuando instalemos el APK y luego apaga el PC. Desde otro celular, escanea un QR, haz un pedido, solicita la boleta y confirma un pago simulado desde el Moto.
 
 El día 1 empieza cuando el local puede operar con sus propios datos y el flujo ya pasó el ensayo. Al día 14 revisamos el resultado y decidimos si mantener el servicio o coordinar su cierre.

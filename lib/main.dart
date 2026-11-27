@@ -11,6 +11,7 @@ import 'guest_ready_feedback.dart';
 import 'night_theme.dart';
 import 'orders.dart';
 import 'products.dart';
+import 'push_notifications.dart';
 
 void main() => runApp(const MenuApp());
 
@@ -148,6 +149,7 @@ class _GuestCatalogState extends State<GuestCatalog> {
   int selectedPercent = 0;
   final cart = <int, int>{};
   int tab = 0;
+  String selectedCategory = 'Todos';
   bool get reviewing => tab == 3;
   bool loading = false;
   String? notice;
@@ -436,9 +438,12 @@ class _GuestCatalogState extends State<GuestCatalog> {
 
   Widget catalogGrid(BuildContext context) {
     final theme = Theme.of(context);
+    final shown = selectedCategory == 'Todos'
+        ? products
+        : products.where((product) => product['category'] == selectedCategory);
     return Column(
       children: [
-        for (final product in products)
+        for (final product in shown)
           Card(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
@@ -496,6 +501,11 @@ class _GuestCatalogState extends State<GuestCatalog> {
           style: Theme.of(context).textTheme.titleLarge,
         ),
         actions: [
+          IconButton(
+            tooltip: 'Avisarme cuando el pedido esté listo',
+            onPressed: () => enablePush(context, widget.api),
+            icon: const Icon(Icons.notifications_active_outlined),
+          ),
           TextButton.icon(
             onPressed: () => showDialog<void>(
               context: context,
@@ -544,7 +554,26 @@ class _GuestCatalogState extends State<GuestCatalog> {
                           ? 'Tu carrito está vacío. Agrega platos desde la Carta.'
                           : 'La carta aún no tiene platos disponibles.',
                     ),
-                  if (!reviewing && visible.isNotEmpty) catalogGrid(context),
+                  if (!reviewing && products.isNotEmpty) ...[
+                    SizedBox(
+                      height: 48,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          for (final category in ['Todos', ...productCategories.where((category) => products.any((product) => product['category'] == category))])
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(category),
+                                selected: selectedCategory == category,
+                                onSelected: (_) => setState(() => selectedCategory = category),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    catalogGrid(context),
+                  ],
                   if (reviewing)
                     for (final product in visible)
                       Card(

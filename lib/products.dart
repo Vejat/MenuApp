@@ -4,6 +4,10 @@ import 'api.dart';
 import 'night_theme.dart';
 
 typedef Product = Map<String, dynamic>;
+const productCategories = [
+  'Entradas', 'Platos principales', 'Acompañamientos',
+  'Bebidas sin alcohol', 'Cervezas', 'Vinos y cócteles', 'Postres',
+];
 
 String clp(int amount) {
   final digits = amount.toString();
@@ -81,9 +85,7 @@ class _ProductsPageState extends State<ProductsPage> {
                           : Icons.visibility_off_outlined,
                     ),
                     title: Text(product['name'] as String),
-                    subtitle: Text(
-                      '${clp(product['price'] as int)} · ${product['available'] == true ? 'Disponible' : 'No disponible'}',
-                    ),
+                    subtitle: Text('${product['category']} · ${clp(product['price'] as int)} · ${product['available'] == true ? 'Disponible' : 'No disponible'}'),
                     trailing: const Icon(Icons.edit_outlined),
                     onTap: () => edit(product),
                   ),
@@ -113,6 +115,7 @@ class _ProductEditorState extends State<ProductEditor> {
   late final price = TextEditingController(
     text: widget.product?['price']?.toString(),
   );
+  late String category = widget.product?['category'] as String? ?? productCategories[1];
   late bool available = widget.product?['available'] as bool? ?? true;
   bool saving = false;
   String? error;
@@ -135,6 +138,7 @@ class _ProductEditorState extends State<ProductEditor> {
         id == null ? '/admin/products' : '/admin/products/$id',
         body: {
           'name': name.text,
+          'category': category,
           'price': int.tryParse(price.text.trim()),
           'available': available,
         },
@@ -166,6 +170,19 @@ class _ProductEditorState extends State<ProductEditor> {
           decoration: const InputDecoration(labelText: 'Precio en pesos'),
           keyboardType: TextInputType.number,
           enabled: !saving,
+        ),
+        DropdownButtonFormField<String>(
+          value: category,
+          decoration: const InputDecoration(labelText: 'Categoría'),
+          items: [
+            for (final item in productCategories)
+              DropdownMenuItem(value: item, child: Text(item)),
+          ],
+          onChanged: saving
+              ? null
+              : (value) {
+                  if (value != null) setState(() => category = value);
+                },
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,

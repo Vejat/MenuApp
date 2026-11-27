@@ -32,9 +32,11 @@ CREATE TABLE IF NOT EXISTS guest_sessions (
 CREATE TABLE IF NOT EXISTS products (
   id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   name text NOT NULL,
+  category text NOT NULL DEFAULT 'Platos principales',
   price integer NOT NULL CHECK (price > 0),
   available boolean NOT NULL DEFAULT true
 );
+ALTER TABLE products ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'Platos principales';
 CREATE TABLE IF NOT EXISTS orders (
   id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   visit_id uuid NOT NULL REFERENCES visits,

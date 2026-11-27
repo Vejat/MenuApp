@@ -165,7 +165,7 @@ export function staffVisitAction(database, visitId, action, body, username) {
 }
 
 export async function summaryPdf(summary, orders) {
-  const doc = new PDFDocument({ margin: 46, info: { Title: 'Resumen de consumo' } });
+  const doc = new PDFDocument({ size: 'A4', margin: 42, info: { Title: 'Resumen de consumo' } });
   const result = new Promise((resolve, reject) => {
     const parts = [];
     doc.on('data', part => parts.push(part));
@@ -173,19 +173,35 @@ export async function summaryPdf(summary, orders) {
     doc.on('error', reject);
   });
   const pesos = value => '$' + new Intl.NumberFormat('es-CL').format(value);
-  doc.fontSize(22).text('Resumen de consumo').fontSize(12).text(summary.label);
-  doc.text('Respaldo de pedidos. La boleta oficial la emite el restaurante.').moveDown();
+  const left = 42;
+  const width = doc.page.width - 84;
+  doc.roundedRect(left, 42, width, 88, 12).fill('#18231f');
+  doc.fillColor('#b7e4c7').font('Helvetica-Bold').fontSize(10).text('MENUAPP  ·  RESTAURANTE', left + 22, 58);
+  doc.fillColor('#ffffff').fontSize(22).text('Resumen de consumo', left + 22, 77);
+  doc.fillColor('#e7eee9').font('Helvetica').fontSize(11).text(summary.label, left + 22, 107);
+  doc.y = 151;
+  doc.fillColor('#59665f').fontSize(9).text('Documento de referencia · La boleta tributaria oficial la emite el restaurante.', { characterSpacing: 0.1 }).moveDown(1.2);
   for (const order of orders) {
-    doc.font('Helvetica-Bold').text('Pedido #' + order.id).font('Helvetica');
+    doc.fillColor('#18231f').font('Helvetica-Bold').fontSize(12).text('Pedido #' + order.id);
+    doc.moveTo(left, doc.y + 5).lineTo(doc.page.width - left, doc.y + 5).strokeColor('#dce5df').stroke();
+    doc.moveDown(0.7).font('Helvetica').fontSize(10).fillColor('#26332c');
     for (const line of order.lines) {
-      doc.text(`${line.quantity} × ${line.name} | ${pesos(line.price)} c/u | ${pesos(line.quantity * line.price)}`);
+      const y = doc.y;
+      doc.text(`${line.quantity} × ${line.name}`, left, y, { width: width * 0.62 });
+      doc.text(`${pesos(line.price)} c/u`, left + width * 0.63, y, { width: width * 0.17, align: 'right' });
+      doc.text(pesos(line.quantity * line.price), left + width * 0.81, y, { width: width * 0.19, align: 'right' });
     }
-    doc.text('Subtotal del pedido: ' + pesos(order.total)).moveDown();
+    doc.moveDown(0.5).font('Helvetica-Bold').text('Subtotal pedido', left, doc.y, { continued: true }).text(pesos(order.total), { align: 'right' }).moveDown(1);
   }
-  doc.text('Subtotal: ' + pesos(summary.subtotal));
-  doc.text(`Descuento (${summary.percent}%): ${pesos(summary.discount)}`);
-  doc.font('Helvetica-Bold').text('Total a pagar: ' + pesos(summary.total));
-  if (summary.method) doc.font('Helvetica').text('Método: ' + methods[summary.method]);
+  doc.moveDown(0.4);
+  const totalY = doc.y;
+  doc.roundedRect(left, totalY, width, 103, 10).fill('#f0f5f1');
+  doc.fillColor('#334139').font('Helvetica').fontSize(11).text('Subtotal', left + 16, totalY + 14, { continued: true }).text(pesos(summary.subtotal), { align: 'right' });
+  doc.text(`Descuento (${summary.percent}%)`, left + 16, totalY + 38, { continued: true }).text('−' + pesos(summary.discount), { align: 'right' });
+  doc.moveTo(left + 16, totalY + 63).lineTo(left + width - 16, totalY + 63).strokeColor('#d5dfd8').stroke();
+  doc.fillColor('#145c3b').font('Helvetica-Bold').fontSize(16).text('TOTAL', left + 16, totalY + 73, { continued: true }).text(pesos(summary.total), { align: 'right' });
+  if (summary.method) doc.moveDown(1.5).fillColor('#59665f').font('Helvetica').fontSize(10).text('Medio de pago: ' + methods[summary.method]);
+  doc.moveDown(1).fillColor('#7b8780').fontSize(8).text('Gracias por tu visita.', { align: 'center' });
   doc.end();
   return result;
 }

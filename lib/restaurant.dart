@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -12,6 +13,7 @@ import 'orders.dart';
 import 'order_alerts.dart';
 import 'payment_history.dart';
 import 'products.dart';
+import 'push_notifications.dart';
 
 class RestaurantPage extends StatefulWidget {
   const RestaurantPage({super.key});
@@ -314,6 +316,12 @@ class _RestaurantPageState extends State<RestaurantPage> {
       ),
       actions: [
         if (role != null) ...[
+          if (kIsWeb)
+            IconButton(
+              tooltip: 'Activar notificaciones en este dispositivo',
+              onPressed: () => enablePush(context, api),
+              icon: const Icon(Icons.notifications_active_outlined),
+            ),
           IconButton(
             tooltip: 'Actualizar',
             onPressed: busy ? null : () => run(refresh),

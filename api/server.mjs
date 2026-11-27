@@ -5,13 +5,16 @@ import { digest, token, verifyPassword } from './security.mjs';
 import { advanceOrder, confirmOrder, listOrders } from './orders.mjs';
 import { canAttempt } from './login-limit.mjs';
 import { serveWeb } from './web-files.mjs';
+import { configurePush, sendPush } from './push.mjs';
 import { administerDiscount, ApiError, discountFor, guestAction, guestVisit, normalizeCode, staffVisitAction, summaryPdf, transaction, visitSummary } from './visit.mjs';
 
 const database = new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 5000 });
 const origin = new URL(process.env.PUBLIC_WEB_URL ?? process.env.RENDER_EXTERNAL_URL ?? 'http://localhost:8080');
 const listenHost = process.env.API_HOST ?? '127.0.0.1';
+const pushPublicKey = await configurePush(database);
 
 const listeners = new Set();
+const productCategories = ['Entradas', 'Platos principales', 'Acompañamientos', 'Bebidas sin alcohol', 'Cervezas', 'Vinos y cócteles', 'Postres'];
 const uuidPattern = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 
 function orderEvents(response, sessionHash, visitId, alerts = false) {
@@ -46,6 +49,8 @@ function notifyOrders(visitId) {
 
 function notifyStaff(type, { id, table }) {
   publishEvent(JSON.stringify({ type, id, table }), listener => listener.alerts && !listener.visitId);
+  const title = type === 'new_order' ? 'Nuevo pedido' : type === 'bill_requested' ? 'Solicitud de pago' : type === 'waiter_called' ? 'Llamaron al mesero' : 'Pago confirmado';
+  void sendPush(database, 'staff', { title: `MenuApp · ${title}`, body: `${table ?? 'Restaurante'} · Toca para abrir MenuApp`, url: '/?personal=1', tag: `${type}-${id}` });
 }
 
 async function readBody(request) {
@@ -95,6 +100,21 @@ async function route(request, response) {
   const url = new URL(request.url, 'http://localhost');
   const path = url.pathname;
   const method = request.method;
+  if (method === 'GET' && path === '/push/key') return { publicKey: pushPublicKey };
+  if (method === 'POST' && path === '/push/subscribe') {
+    const sessionHash = digest(bearer(request));
+    const { subscription } = await readBody(request);
+    if (!subscription || typeof subscription.endpoint !== 'string' || !subscription.endpoint.startsWith('https://')) throw new ApiError(400, 'Suscripción inválida.');
+    const staff = await database.query('SELECT 1 FROM staff_sessions WHERE token_hash=$1 AND expires_at>now()', [sessionHash]);
+    let audience = 'staff';
+    if (!staff.rowCount) {
+      const guest = await database.query('SELECT 1 FROM guest_sessions WHERE token_hash=$1', [sessionHash]);
+      if (!guest.rowCount) throw new ApiError(401, 'Inicia sesión o escanea el QR nuevamente.');
+      audience = 'guest';
+    }
+    await database.query('INSERT INTO push_subscriptions (endpoint, subscription, audience, session_hash) VALUES ($1,$2,$3,$4) ON CONFLICT (endpoint) DO UPDATE SET subscription=$2,audience=$3,session_hash=$4', [subscription.endpoint, subscription, audience, sessionHash]);
+    return { ok: true };
+  }
   if (method === 'GET' && path === '/healthz') {
     await database.query('SELECT 1 FROM staff LIMIT 1');
     return { ok: true };
@@ -281,6 +301,7 @@ async function route(request, response) {
       publishEvent(JSON.stringify({ type: 'order_ready', id: result.id }),
         listener => listener.alerts && listener.visitId === result.visitId &&
           listener.sessionHash === result.guestSessionHash);
+      void sendPush(database, 'guest', { title: 'Tu pedido está listo', body: `Pedido #${result.id} · Ya te lo llevan a la mesa.`, url: '/', tag: `ready-${result.id}` }, result.guestSessionHash);
     }
     return {};
   }
@@ -292,15 +313,15 @@ async function route(request, response) {
       return { products: rows };
     }
     if (method === 'POST') {
-      const { name, price, available } = await readBody(request);
+      const { name, category, price, available } = await readBody(request);
       if (typeof name !== 'string' || !name.trim() || name.trim().length > 120 ||
-          !Number.isInteger(price) || price < 1 || price > 10000000 || typeof available !== 'boolean') {
-        throw new ApiError(400, 'Revisa el nombre, el precio y la disponibilidad.');
+          !productCategories.includes(category) || !Number.isInteger(price) || price < 1 || price > 10000000 || typeof available !== 'boolean') {
+        throw new ApiError(400, 'Revisa el nombre, la categoría, el precio y la disponibilidad.');
       }
-      const values = [name.trim(), price, available];
+      const values = [name.trim(), category, price, available];
       const query = path === '/admin/products'
-        ? await database.query('INSERT INTO products (name, price, available) VALUES ($1, $2, $3) RETURNING id', values)
-        : await database.query('UPDATE products SET name = $1, price = $2, available = $3 WHERE id = $4 RETURNING id', [...values, path.split('/').at(-1)]);
+        ? await database.query('INSERT INTO products (name, category, price, available) VALUES ($1, $2, $3, $4) RETURNING id', values)
+        : await database.query('UPDATE products SET name = $1, category = $2, price = $3, available = $4 WHERE id = $5 RETURNING id', [...values, path.split('/').at(-1)]);
       if (!query.rowCount) throw new ApiError(404, 'Producto no disponible.');
       return query.rows[0];
     }

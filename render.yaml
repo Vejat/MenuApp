@@ -19,5 +19,4 @@ databases:
   - name: menuapp-piloto-db
     region: ohio
     plan: free
-    diskSizeGB: 1
     ipAllowList: []

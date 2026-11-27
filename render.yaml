@@ -2,11 +2,10 @@ services:
   - type: web
     name: menuapp-piloto
     runtime: docker
-    plan: 0.5c-512mb
+    plan: free
     region: ohio
     numInstances: 1
     healthCheckPath: /healthz
-    preDeployCommand: node migrate.mjs
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -14,9 +13,11 @@ services:
           property: connectionString
       - key: ADMIN_PASSWORD
         generateValue: true
+      - key: STAFF_PASSWORD
+        generateValue: true
 databases:
   - name: menuapp-piloto-db
     region: ohio
-    plan: 0.1c-256mb
+    plan: free
     diskSizeGB: 1
     ipAllowList: []

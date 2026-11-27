@@ -19,4 +19,4 @@ COPY api/ ./
 COPY --from=web-build /src/build/web/ /app/web/
 USER node
 EXPOSE 10000
-CMD ["node", "server.mjs"]
+CMD ["sh", "-c", "node migrate.mjs && node server.mjs"]

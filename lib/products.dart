@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'night_theme.dart';
 
 typedef Product = Map<String, dynamic>;
 
@@ -44,41 +45,53 @@ class _ProductsPageState extends State<ProductsPage> {
       label: const Text('Agregar plato'),
       icon: const Icon(Icons.add),
     ),
-    body: FutureBuilder(
-      future: products,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: TextButton(
-              onPressed: reload,
-              child: Text('${apiMessage(snapshot.error)} Reintentar'),
-            ),
-          );
-        }
-        final list = snapshot.data;
-        if (list == null) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (list.isEmpty) {
-          return const Center(child: Text('Agrega el primer plato.'));
-        }
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-          children: [
-            for (final product in list)
-              Card(
-                child: ListTile(
-                  title: Text(product['name'] as String),
-                  subtitle: Text(
-                    '${clp(product['price'] as int)} · ${product['available'] == true ? 'Disponible' : 'Oculto'}',
-                  ),
-                  trailing: const Icon(Icons.edit_outlined),
-                  onTap: () => edit(product),
-                ),
+    body: ScreenColumn(
+      child: FutureBuilder(
+        future: products,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: TextButton(
+                onPressed: reload,
+                child: Text('${apiMessage(snapshot.error)} Reintentar'),
               ),
-          ],
-        );
-      },
+            );
+          }
+          final list = snapshot.data;
+          if (list == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (list.isEmpty) {
+            return const Center(
+              child: Text(
+                'Aún no hay platos. Toca «Agregar plato» para crear el primero.',
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+            children: [
+              for (final product in list)
+                Card(
+                  child: ListTile(
+                    leading: Icon(
+                      product['available'] == true
+                          ? Icons.restaurant_menu
+                          : Icons.visibility_off_outlined,
+                    ),
+                    title: Text(product['name'] as String),
+                    subtitle: Text(
+                      '${clp(product['price'] as int)} · ${product['available'] == true ? 'Disponible' : 'No disponible'}',
+                    ),
+                    trailing: const Icon(Icons.edit_outlined),
+                    onTap: () => edit(product),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
     ),
   );
 }

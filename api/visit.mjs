@@ -30,7 +30,7 @@ export async function guestVisit(database, sessionHash, lock = false) {
      WHERE token_hash = $1 AND visits.status <> 'closed'${lock ? ' FOR UPDATE OF visits' : ''}`,
     [sessionHash],
   );
-  if (!rows.length) throw new ApiError(401, 'La sesión de la mesa ya no está disponible.');
+  if (!rows.length) throw new ApiError(401, 'Esta mesa ya se cerró. Escanea el QR otra vez para empezar.');
   return rows[0];
 }
 
@@ -50,14 +50,14 @@ export async function discountFor(database, visit, code, lock = false) {
       AND (now() AT TIME ZONE 'America/Santiago')::date BETWEEN starts_on AND ends_on${lock ? ' FOR SHARE' : ''}`,
     [code],
   );
-  if (!rows.length) throw new ApiError(409, 'El código está inactivo, vencido o no existe.');
+  if (!rows.length) throw new ApiError(409, 'Este código no es válido o ya venció.');
   return rows[0];
 }
 
 export function normalizeCode(value) {
   if (value == null || value === '') return '';
   if (typeof value !== 'string' || !/^[A-Z0-9_-]{1,24}$/.test(value.trim().toUpperCase())) {
-    throw new ApiError(400, 'El código admite letras, números, guiones y un máximo de 24 caracteres.');
+    throw new ApiError(400, 'Usa letras, números o guiones (máx. 24).');
   }
   return value.trim().toUpperCase();
 }
@@ -66,7 +66,8 @@ export async function visitSummary(database, visitId) {
   const { rows } = await database.query(
     `SELECT visits.id, table_id AS "tableId", label, visits.status, discount_code AS code, discount_percent AS percent,
       bill_method AS method, review, waiter_calls.id AS "callId",
-      COALESCE(SUM(orders.total), 0)::float8 AS subtotal, COUNT(orders.id)::integer AS "orderCount"
+      COALESCE(SUM(orders.total), 0)::float8 AS subtotal, COUNT(orders.id)::integer AS "orderCount",
+      (COUNT(orders.id) FILTER (WHERE orders.status <> 'delivered'))::integer AS "pendingDelivery"
      FROM visits JOIN dining_tables ON dining_tables.id = table_id
      LEFT JOIN orders ON orders.visit_id = visits.id
      LEFT JOIN waiter_calls ON waiter_calls.visit_id = visits.id AND attended_at IS NULL
@@ -100,10 +101,11 @@ export function guestAction(database, sessionHash, action, body) {
     const visit = await guestVisit(client, sessionHash, true);
     if (visit.status === 'paid') throw new ApiError(409, 'La cuenta ya está pagada.');
     if (action === 'call') {
-      await client.query(
+      const { rows } = await client.query(
         `INSERT INTO waiter_calls (visit_id) VALUES ($1)
-         ON CONFLICT (visit_id) WHERE attended_at IS NULL DO NOTHING`, [visit.id],
+         ON CONFLICT (visit_id) WHERE attended_at IS NULL DO NOTHING RETURNING id`, [visit.id],
       );
+      return { id: visit.id, table: visit.label, callId: rows[0]?.id };
     } else {
       if (typeof body.method !== 'string' || !Object.hasOwn(methods, body.method)) {
         throw new ApiError(400, 'Elige un método de pago.');
@@ -115,15 +117,20 @@ export function guestAction(database, sessionHash, action, body) {
         [visit.id, body.method, summary.total],
       );
     }
-    return visit.id;
+    return { id: visit.id, table: visit.label, billRequested: action === 'bill' && visit.status === 'open' };
   });
 }
 
 export function staffVisitAction(database, visitId, action, body, username) {
   return transaction(database, async client => {
-    const { rows } = await client.query("SELECT * FROM visits WHERE id = $1 AND status <> 'closed' FOR UPDATE", [visitId]);
+    const { rows } = await client.query(
+      `SELECT visits.*, label FROM visits JOIN dining_tables ON dining_tables.id = visits.table_id
+       WHERE visits.id = $1 FOR UPDATE OF visits`, [visitId],
+    );
     const visit = rows[0];
-    if (!visit) throw new ApiError(404, 'La visita ya no está disponible.');
+    if (action === 'pay' && visit?.status === 'closed' && visit.paid_at &&
+        body.total === Number(visit.bill_total) && body.method === visit.bill_method) return;
+    if (!visit || visit.status === 'closed') throw new ApiError(404, 'La visita ya no está disponible.');
     switch (action) {
       case 'attend':
         if (!Number.isInteger(body.callId)) throw new ApiError(400, 'Llamada inválida.');
@@ -144,11 +151,15 @@ export function staffVisitAction(database, visitId, action, body, username) {
         if (visit.status === 'paid' && body.total === Number(visit.bill_total) && body.method === visit.bill_method) break;
         if (visit.status !== 'bill_requested' || body.total !== Number(visit.bill_total) ||
             body.method !== visit.bill_method) throw new ApiError(409, 'La cuenta cambió. Revisa el total y el método.');
+        const pending = await client.query(
+          "SELECT 1 FROM orders WHERE visit_id = $1 AND status <> 'delivered' LIMIT 1", [visitId],
+        );
+        if (pending.rowCount) throw new ApiError(409, 'Marca los pedidos como entregados para confirmar el pago.');
         await client.query(
-          "UPDATE visits SET status = 'paid', paid_at = now(), paid_by = $2 WHERE id = $1",
+          "UPDATE visits SET status = 'closed', paid_at = now(), paid_by = $2 WHERE id = $1",
           [visitId, username],
         );
-        break;
+        return { id: visitId, table: visit.label };
     }
   });
 }

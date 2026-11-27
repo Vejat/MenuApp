@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'night_theme.dart';
 
 class DiscountsPage extends StatefulWidget {
   const DiscountsPage({super.key, required this.api});
@@ -33,43 +34,56 @@ class _DiscountsPageState extends State<DiscountsPage> {
     floatingActionButton: FloatingActionButton.extended(
       onPressed: () => edit(),
       icon: const Icon(Icons.add),
-      label: const Text('Agregar código'),
+      label: const Text('Nuevo código'),
     ),
-    body: FutureBuilder(
-      future: discounts,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: TextButton(
-              onPressed: reload,
-              child: Text('${apiMessage(snapshot.error)} Reintentar'),
-            ),
-          );
-        }
-        final entries = snapshot.data?['discounts'] as List?;
-        if (entries == null) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (entries.isEmpty) {
-          return const Center(child: Text('Todavía no hay códigos.'));
-        }
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-          children: [
-            for (final discount in entries)
-              Card(
-                child: ListTile(
-                  title: Text("${discount['code']} · ${discount['percent']}%"),
-                  subtitle: Text(
-                    "${discount['startsOn']} a ${discount['endsOn']} · ${discount['active'] == true ? 'Activado' : 'Desactivado'}",
-                  ),
-                  trailing: const Icon(Icons.edit_outlined),
-                  onTap: () => edit(discount as Map<String, dynamic>),
-                ),
+    body: ScreenColumn(
+      child: FutureBuilder(
+        future: discounts,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: TextButton(
+                onPressed: reload,
+                child: Text('${apiMessage(snapshot.error)} Reintentar'),
               ),
-          ],
-        );
-      },
+            );
+          }
+          final entries = snapshot.data?['discounts'] as List?;
+          if (entries == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (entries.isEmpty) {
+            return const Center(child: Text('Todavía no hay códigos.'));
+          }
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+            children: [
+              for (final discount in entries)
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.local_offer_outlined),
+                    title: Text(
+                      "${discount['code']} · ${discount['percent']} %",
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Wrap(
+                        spacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(_dateRange(discount as Map<String, dynamic>)),
+                          _discountState(context, discount),
+                        ],
+                      ),
+                    ),
+                    trailing: const Icon(Icons.edit_outlined),
+                    onTap: () => edit(discount),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
     ),
   );
 }
@@ -138,6 +152,31 @@ class _DiscountEditorState extends State<DiscountEditor> {
     }
   }
 
+  Widget dateField(TextEditingController controller, String label) => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: TextField(
+      controller: controller,
+      enabled: !busy,
+      readOnly: true,
+      decoration: InputDecoration(
+        labelText: label,
+        suffixIcon: const Icon(Icons.calendar_today_outlined),
+      ),
+      onTap: () async {
+        final current = DateTime.tryParse(controller.text) ?? DateTime.now();
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: current,
+          firstDate: DateTime(2024),
+          lastDate: DateTime(2100),
+        );
+        if (picked != null) {
+          controller.text = picked.toIso8601String().substring(0, 10);
+        }
+      },
+    ),
+  );
+
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(widget.discount == null ? 'Nuevo código' : 'Editar código'),
@@ -148,24 +187,19 @@ class _DiscountEditorState extends State<DiscountEditor> {
         TextField(
           controller: code,
           enabled: !busy && widget.discount == null,
-          decoration: const InputDecoration(labelText: 'Código'),
+          decoration: const InputDecoration(
+            labelText: 'Código',
+            helperText: 'Usa letras, números o guiones (máx. 24).',
+          ),
         ),
         TextField(
           controller: percent,
           enabled: !busy,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Porcentaje'),
+          decoration: const InputDecoration(labelText: 'Descuento (%)'),
         ),
-        TextField(
-          controller: starts,
-          enabled: !busy,
-          decoration: const InputDecoration(labelText: 'Desde (AAAA-MM-DD)'),
-        ),
-        TextField(
-          controller: ends,
-          enabled: !busy,
-          decoration: const InputDecoration(labelText: 'Hasta (AAAA-MM-DD)'),
-        ),
+        dateField(starts, 'Válido desde'),
+        dateField(ends, 'Hasta'),
         SwitchListTile(
           title: const Text('Activo'),
           value: active,
@@ -182,4 +216,43 @@ class _DiscountEditorState extends State<DiscountEditor> {
       FilledButton(onPressed: busy ? null : save, child: const Text('Guardar')),
     ],
   );
+}
+
+const _months = [
+  'ene',
+  'feb',
+  'mar',
+  'abr',
+  'may',
+  'jun',
+  'jul',
+  'ago',
+  'sep',
+  'oct',
+  'nov',
+  'dic',
+];
+
+String _shortDate(String iso) {
+  final date = DateTime.tryParse(iso);
+  return date == null ? iso : '${date.day} ${_months[date.month - 1]}';
+}
+
+String _dateRange(Map<String, dynamic> discount) {
+  final starts = discount['startsOn'] as String;
+  final ends = discount['endsOn'] as String;
+  return starts == ends
+      ? _shortDate(starts)
+      : '${_shortDate(starts)} – ${_shortDate(ends)}';
+}
+
+Widget _discountState(BuildContext context, Map<String, dynamic> discount) {
+  final colors = Theme.of(context).colorScheme;
+  final today = DateTime.now().toIso8601String().substring(0, 10);
+  final (label, color) = (discount['endsOn'] as String).compareTo(today) < 0
+      ? ('Vencido', colors.error)
+      : discount['active'] == true
+      ? ('Activo', colors.success)
+      : ('Inactivo', colors.onSurfaceVariant);
+  return StatusLabel(label, color: color);
 }

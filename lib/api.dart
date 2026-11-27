@@ -25,7 +25,25 @@ class Api {
   Uri _endpoint(String path) =>
       base.isEmpty ? Uri.base.resolve(path) : Uri.parse('$base$path');
 
-  Stream<Map<String, dynamic>> watchOrders(String path) async* {
+  Stream<Map<String, dynamic>> watchOrders(String path) => _watchEvents(
+    path,
+    (data) async => data == 'orders' ? await request(path) : null,
+  );
+
+  Stream<Map<String, dynamic>> watchAlerts() => _watchEvents(
+    '/staff/alerts',
+    (data) async => jsonDecode(data) as Map<String, dynamic>,
+  );
+
+  Stream<Map<String, dynamic>> watchGuestAlerts() => _watchEvents(
+    '/guest/alerts',
+    (data) async => jsonDecode(data) as Map<String, dynamic>,
+  );
+
+  Stream<Map<String, dynamic>> _watchEvents(
+    String path,
+    Future<Map<String, dynamic>?> Function(String) decode,
+  ) async* {
     while (session != null) {
       final client = http.Client();
       try {
@@ -48,7 +66,10 @@ class Api {
                 .transform(utf8.decoder)
                 .transform(const LineSplitter())
                 .timeout(const Duration(seconds: 25))) {
-          if (line == 'data: orders') yield await this.request(path);
+          if (line.startsWith('data: ')) {
+            final event = await decode(line.substring(6));
+            if (event != null) yield event;
+          }
         }
       } catch (error) {
         yield* Stream.error(error);

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'night_theme.dart';
+
 import 'api.dart';
 import 'download.dart';
 import 'products.dart';
@@ -24,12 +26,14 @@ class VisitCheckout extends StatefulWidget {
     required this.visit,
     required this.staff,
     this.alertsOnly = false,
+    this.showSummary = true,
   });
 
   final Api api;
   final Map<String, dynamic> visit;
   final bool staff;
   final bool alertsOnly;
+  final bool showSummary;
 
   @override
   State<VisitCheckout> createState() => _VisitCheckoutState();
@@ -58,29 +62,43 @@ class _VisitCheckoutState extends State<VisitCheckout> {
   }
 
   Future<void> chooseMethod() async {
-    final method = await showDialog<String>(
+    final method = await showModalBottomSheet<String>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('Método de pago'),
-        children: [
-          for (final item in paymentMethods.entries)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, item.key),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  children: [
-                    Icon(_paymentIcon(item.key)),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text(item.value)),
-                    if (widget.visit['method'] == item.key)
-                      const Icon(Icons.check_circle_outline),
-                  ],
+      showDragHandle: true,
+      builder: (context) {
+        final theme = Theme.of(context);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Elige cómo pagar', style: theme.textTheme.titleLarge),
+                const SizedBox(height: 4),
+                Text(
+                  'El personal irá a tu mesa a cobrar.',
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
                 ),
-              ),
+                const SizedBox(height: 16),
+                for (final key in const ['card', 'cash', 'transfer'])
+                  Card(
+                    child: ListTile(
+                      leading: Icon(_paymentIcon(key)),
+                      title: Text(paymentMethods[key]!),
+                      trailing: Icon(
+                        widget.visit['method'] == key
+                            ? Icons.check_circle_outline
+                            : Icons.chevron_right,
+                      ),
+                      onTap: () => Navigator.pop(context, key),
+                    ),
+                  ),
+              ],
             ),
-        ],
-      ),
+          ),
+        );
+      },
     );
     if (method != null && mounted) {
       await run(() => post('/guest/bill', {'method': method}));
@@ -92,16 +110,19 @@ class _VisitCheckoutState extends State<VisitCheckout> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-          total == 0 ? 'Confirmar saldo cero' : 'Confirmar pago recibido',
+          total == 0
+              ? 'Confirmar saldo cero'
+              : '¿Confirmar pago y cerrar la mesa?',
         ),
         content: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(widget.visit['label'] as String),
-            Text(clp(total), style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 8),
-            Text(paymentMethods[method]!),
+            _AmountLine(label: 'Mesa', text: widget.visit['label'] as String),
+            _AmountLine(label: 'Método', text: paymentMethods[method]!),
+            _AmountLine(label: 'Total', amount: total, major: true),
+            const SizedBox(height: 12),
+            const Text('La mesa queda libre para el próximo QR.'),
           ],
         ),
         actions: [
@@ -129,43 +150,69 @@ class _VisitCheckoutState extends State<VisitCheckout> {
     final method = visit['method'] as String?;
     final review = visit['review'] == true;
     final status = visit['status'];
+    final waitingForPayment = !widget.staff && status == 'bill_requested';
     if (widget.alertsOnly) {
+      final warning = Theme.of(context).colorScheme.warning;
       return Card(
-        color: Theme.of(context).colorScheme.secondaryContainer,
-        child: ListTile(
-          title: Text("${visit['label']} · Llamada pendiente"),
-          subtitle: TextButton(
-            onPressed: busy
-                ? null
-                : () => run(() => post('$path/attend', {'callId': callId})),
-            child: const Text('Atender llamada'),
+        color: Color.alphaBlend(
+          warning.withValues(alpha: .14),
+          Theme.of(context).colorScheme.surface,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "${visit['label']} llama al mesero",
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(color: warning),
+              ),
+              const SizedBox(height: 8),
+              FilledButton.tonalIcon(
+                onPressed: busy
+                    ? null
+                    : () => run(() => post('$path/attend', {'callId': callId})),
+                icon: const Icon(Icons.check),
+                label: const Text('Marcar atendida'),
+              ),
+            ],
           ),
         ),
       );
     }
     final total = (visit['total'] as num).toInt();
     final hasOrders = (visit['orderCount'] as num) > 0;
+    final pendingDelivery = (visit['pendingDelivery'] as num? ?? 0) > 0;
     final heading = switch (status) {
-      'bill_requested' => 'Boleta solicitada',
+      'bill_requested' => widget.staff ? 'Pide la cuenta' : 'Pago solicitado',
       'paid' => 'Pagada',
-      _ => hasOrders ? 'Consumo pendiente' : 'Visita abierta',
+      _ => widget.staff ? 'Ocupada' : 'Por pagar',
     };
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final accent = switch (status) {
-      'bill_requested' => const Color(0xffffce8b),
-      'paid' => const Color(0xffa6e6c0),
-      _ => colors.secondary,
+      'bill_requested' => colors.warning,
+      'paid' => colors.success,
+      _ => colors.occupied,
     };
+    final cta = FilledButton.styleFrom(
+      minimumSize: const Size.fromHeight(52),
+      textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+    );
     final primary = widget.staff
         ? switch ((status, method)) {
             ('bill_requested', final String value) => FilledButton(
-              onPressed: busy ? null : () => pay('$path/pay', total, value),
+              style: cta,
+              onPressed: busy || pendingDelivery
+                  ? null
+                  : () => pay('$path/pay', total, value),
               child: Text(
                 total == 0 ? 'Confirmar saldo cero' : 'Confirmar pago',
               ),
             ),
             ('paid', _) => FilledButton(
+              style: cta,
               onPressed: busy
                   ? null
                   : () => run(
@@ -177,12 +224,11 @@ class _VisitCheckoutState extends State<VisitCheckout> {
             ),
             _ => null,
           }
-        : hasOrders && status != 'paid'
+        : hasOrders && status == 'open'
         ? FilledButton(
+            style: cta,
             onPressed: busy ? null : chooseMethod,
-            child: Text(
-              status == 'bill_requested' ? 'Cambiar método' : 'Pedir boleta',
-            ),
+            child: const Text('Pagar'),
           )
         : null;
     return Card(
@@ -191,77 +237,96 @@ class _VisitCheckoutState extends State<VisitCheckout> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              widget.staff ? visit['label'] as String : 'Resumen de consumo',
-              style: theme.textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                Chip(
-                  avatar: Icon(
-                    status == 'paid'
-                        ? Icons.task_alt
-                        : Icons.receipt_long_outlined,
-                    color: accent,
-                    size: 18,
-                  ),
-                  label: Text(heading, style: TextStyle(color: accent)),
-                  side: BorderSide(color: accent.withValues(alpha: .5)),
-                  backgroundColor: Color.alphaBlend(
-                    accent.withValues(alpha: .09),
-                    colors.surface,
-                  ),
-                ),
-                if (widget.staff && review)
-                  const Chip(label: Text('En revisión')),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              status == 'paid' ? 'Total pagado' : 'Total a pagar',
-              style: theme.textTheme.labelLarge,
-            ),
-            Text(
-              clp(total),
-              style: theme.textTheme.displaySmall?.copyWith(
-                color: colors.primary,
-                fontWeight: FontWeight.w800,
+            if (widget.showSummary) ...[
+              Text(
+                widget.staff ? visit['label'] as String : 'Resumen de consumo',
+                style: theme.textTheme.titleLarge,
               ),
-            ),
+              if (!waitingForPayment) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    Chip(
+                      avatar: Icon(
+                        status == 'paid'
+                            ? Icons.task_alt
+                            : Icons.receipt_long_outlined,
+                        color: accent,
+                        size: 18,
+                      ),
+                      label: Text(heading, style: TextStyle(color: accent)),
+                      side: BorderSide(color: accent.withValues(alpha: .5)),
+                      backgroundColor: Color.alphaBlend(
+                        accent.withValues(alpha: .09),
+                        colors.surface,
+                      ),
+                    ),
+                    if (widget.staff && review)
+                      Chip(
+                        label: Text(
+                          'Saldo por revisar',
+                          style: TextStyle(color: colors.error),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 8),
+              Text(
+                status == 'paid' ? 'Total pagado' : 'Total a pagar',
+                style: theme.textTheme.labelLarge,
+              ),
+              Text(
+                clp(total),
+                style: theme.textTheme.displaySmall?.copyWith(
+                  color: colors.price,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             _AmountLine(
               label: 'Subtotal',
               amount: (visit['subtotal'] as num).toInt(),
             ),
-            _AmountLine(
-              label: "Descuento (${visit['percent']}%)",
-              amount: (visit['discount'] as num).toInt(),
-            ),
-            const SizedBox(height: 12),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: colors.secondaryContainer,
-                borderRadius: BorderRadius.circular(14),
+            if ((visit['percent'] as num? ?? 0) > 0)
+              _AmountLine(
+                label: "Descuento (${visit['percent']} %)",
+                amount: (visit['discount'] as num).toInt(),
               ),
-              child: ListTile(
-                leading: Icon(_paymentIcon(method), color: colors.secondary),
-                title: const Text('Método de pago'),
-                subtitle: Text(
-                  paymentMethods[method] ?? 'Por elegir',
-                  style: theme.textTheme.titleMedium,
+            const SizedBox(height: 12),
+            if (method != null && !waitingForPayment)
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colors.secondaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: ListTile(
+                  leading: Icon(_paymentIcon(method), color: colors.secondary),
+                  title: const Text('Método de pago'),
+                  subtitle: Text(
+                    paymentMethods[method] ?? 'Por elegir',
+                    style: theme.textTheme.titleMedium,
+                  ),
                 ),
               ),
-            ),
+            if (waitingForPayment) ...[
+              const SizedBox(height: 14),
+              _PaymentOnTheWay(accent: accent, method: method),
+            ],
             if (callId != null)
               const Padding(
                 padding: EdgeInsets.only(top: 10),
-                child: Text('Llamada al mesero pendiente'),
+                child: Text('Llamó al mesero'),
               ),
             if (primary != null) ...[
               const SizedBox(height: 14),
+              if (widget.staff && status == 'bill_requested' && pendingDelivery)
+                const Text(
+                  'Marca los pedidos como entregados para confirmar el pago.',
+                ),
               SizedBox(width: double.infinity, child: primary),
             ],
             const SizedBox(height: 4),
@@ -278,7 +343,7 @@ class _VisitCheckoutState extends State<VisitCheckout> {
                                   () =>
                                       post('$path/attend', {'callId': callId}),
                                 ),
-                          child: const Text('Atender llamada'),
+                          child: const Text('Marcar atendida'),
                         ),
                       if (status == 'bill_requested' && method != null)
                         TextButton(
@@ -296,7 +361,9 @@ class _VisitCheckoutState extends State<VisitCheckout> {
                                       post('$path/review', {'review': !review}),
                                 ),
                           child: Text(
-                            review ? 'Quitar revisión' : 'Marcar para revisión',
+                            review
+                                ? 'Quitar marca'
+                                : 'Marcar saldo por revisar',
                           ),
                         ),
                     ]
@@ -311,7 +378,7 @@ class _VisitCheckoutState extends State<VisitCheckout> {
                                   );
                                   downloadSummary(response['pdf'] as String);
                                 }),
-                          child: const Text('Descargar resumen PDF'),
+                          child: const Text('Descargar resumen (PDF)'),
                         ),
                     ],
             ),
@@ -322,11 +389,84 @@ class _VisitCheckoutState extends State<VisitCheckout> {
   }
 }
 
+class _PaymentOnTheWay extends StatelessWidget {
+  const _PaymentOnTheWay({required this.accent, this.method});
+
+  final Color accent;
+  final String? method;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: accent.withValues(alpha: .35)),
+          color: Color.alphaBlend(
+            accent.withValues(alpha: .10),
+            colors.surface,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: accent.withValues(alpha: .14),
+              ),
+              child: Icon(_paymentIcon(method), color: accent, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'El personal va a tu mesa',
+                    style: theme.textTheme.titleMedium?.copyWith(color: accent),
+                  ),
+                  if (method != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      paymentMethods[method] ?? '',
+                      style: theme.textTheme.titleSmall,
+                    ),
+                  ],
+                  const SizedBox(height: 2),
+                  Text(
+                    'Pagas en la mesa y recibes tu boleta.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AmountLine extends StatelessWidget {
-  const _AmountLine({required this.label, required this.amount});
+  const _AmountLine({
+    required this.label,
+    this.amount,
+    this.text,
+    this.major = false,
+  });
 
   final String label;
-  final int amount;
+  final int? amount;
+  final String? text;
+  final bool major;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -341,7 +481,15 @@ class _AmountLine extends StatelessWidget {
             ),
           ),
         ),
-        Text(clp(amount)),
+        Text(
+          text ?? clp(amount!),
+          style: major
+              ? Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.price,
+                  fontWeight: FontWeight.w800,
+                )
+              : null,
+        ),
       ],
     ),
   );
@@ -386,23 +534,29 @@ class _GuestHelpDialogState extends State<GuestHelpDialog> {
           error ??
           (snapshot.hasError ? apiMessage(snapshot.error) : null) ??
           (pending
-              ? 'Llamada al mesero pendiente.'
+              ? 'El personal ya recibió tu llamado.'
               : paid
               ? 'La cuenta ya está pagada.'
-              : 'El personal recibirá una llamada de tu mesa.');
+              : 'Alguien del personal irá a tu mesa.');
       return AlertDialog(
-        title: const Text('Ayuda'),
+        title: const Text('¿Llamar al mesero?'),
         content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Volver'),
+            child: const Text('Cancelar'),
           ),
           FilledButton(
             onPressed: summary == null || sending || pending || paid
                 ? null
                 : call,
-            child: Text(sending ? 'Enviando…' : 'Llamar al mesero'),
+            child: Text(
+              sending
+                  ? 'Enviando…'
+                  : pending
+                  ? 'Llamado enviado'
+                  : 'Llamar',
+            ),
           ),
         ],
       );

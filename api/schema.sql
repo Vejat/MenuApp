@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS dining_tables (
   id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   label text UNIQUE NOT NULL
 );
+ALTER TABLE dining_tables ADD COLUMN IF NOT EXISTS qr_token uuid NOT NULL DEFAULT gen_random_uuid();
+CREATE UNIQUE INDEX IF NOT EXISTS dining_tables_qr_token ON dining_tables (qr_token);
 CREATE TABLE IF NOT EXISTS visits (
   id uuid PRIMARY KEY,
   table_id integer NOT NULL REFERENCES dining_tables,
@@ -45,6 +47,7 @@ CREATE TABLE IF NOT EXISTS orders (
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (visit_id, request_key)
 );
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS guest_session_hash text;
 CREATE TABLE IF NOT EXISTS discount_codes (
   code text PRIMARY KEY,
   percent integer NOT NULL CHECK (percent BETWEEN 1 AND 100),
@@ -60,6 +63,8 @@ ALTER TABLE visits
   ADD COLUMN IF NOT EXISTS paid_at timestamptz,
   ADD COLUMN IF NOT EXISTS paid_by text REFERENCES staff,
   ADD COLUMN IF NOT EXISTS review boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS visits_payment_history
+  ON visits (paid_at DESC, id DESC) WHERE paid_at IS NOT NULL;
 CREATE TABLE IF NOT EXISTS waiter_calls (
   id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   visit_id uuid NOT NULL REFERENCES visits,

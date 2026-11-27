@@ -1,34 +1,19 @@
-# MenuApp · Piloto de 14 días sin el PC
+﻿# MenuApp: publicación gratuita para pruebas
 
-La versión para alojamiento está preparada y probada en Docker. Falta publicar la web y la API, crear la base de datos del piloto y apuntar el APK a la dirección pública.
+La configuración está preparada para alojar en Render, sin comprar dominio ni elegir recursos de pago. Render entrega una dirección HTTPS `*.onrender.com`. El sitio, la API y PostgreSQL quedan en el mismo despliegue. Los clientes usan los QR y el personal/administrador entra en la misma dirección con `?personal=1`.
 
-**Estado actual:** el código está en el repositorio privado [Vejat/MenuApp](https://github.com/Vejat/MenuApp), en la rama `main`. Falta dar a Render acceso a ese repositorio y revisar el costo antes de activar los recursos.
+## Límites del plan gratis
 
-## 1. Lo que te toca ahora
+- La web/API se duerme tras 15 minutos sin visitas; la primera apertura puede tardar cerca de un minuto.
+- PostgreSQL gratis tiene 1 GB, no incluye copias de seguridad y vence a los 30 días. Guarda solo datos de prueba y exporta lo que quieras conservar antes del vencimiento.
+- Está pensado para probar, no para operar un restaurante de forma continua.
 
-1. **GitHub: completado.** Si necesitas volver a iniciar sesión, abre **Terminal → Nueva terminal** en VS Code y ejecuta:
+## Publicar
 
-   ```powershell
-   gh auth login --hostname github.com --git-protocol https --web
-   ```
+1. En Render, crea un **Blueprint** desde el repositorio GitHub `Vejat/MenuApp`, rama `main`, y revisa que los dos recursos indiquen plan **Free** antes de desplegar. El archivo `render.yaml` genera contraseñas iniciales para `admin` y `staff`; consúltalas en las variables de entorno del servicio y entrégalas directamente a sus titulares. No las pegues en el chat.
+2. Pulsa **Deploy Blueprint**. Render construirá Flutter Web y Node; el servicio migrará PostgreSQL al arrancar y asignará la URL pública. La página de clientes queda en la raíz; el acceso web del personal queda en `https://<servicio>.onrender.com/?personal=1`.
+3. Para cuentas individuales, ejecuta `node accounts.mjs create usuario staff` o `node accounts.mjs create usuario admin` con `DATABASE_URL` configurada desde una terminal segura. Para restablecer o revocar, usa `node accounts.mjs reset usuario` o `node accounts.mjs disable usuario`. No compartas la URL de conexión ni contraseñas públicamente.
+4. En Android, compila el APK conectado a la misma API pública: `flutter build apk --debug --dart-define=API_URL=https://<servicio>.onrender.com`. Al instalarlo, el personal inicia sesión con las cuentas anteriores. La app móvil y la web operan sobre la misma base de datos remota; no se requiere que el computador del restaurante quede encendido.
+5. Desde celulares distintos, ensaya QR, pedidos, cambios de estado, llamada al mesero, solicitud y confirmación de pago. Confirma que ambos paneles reflejen los mismos datos.
 
-   Completa el inicio de sesión en el navegador. Yo puedo comprobar la conexión y crear el repositorio privado. [Guía de GitHub CLI](https://cli.github.com/manual/gh_auth_login)
-
-2. **Conecta el repositorio a Render.** En Edge, abre el panel de Render y selecciona **New → Blueprint**. Si te pide conectar GitHub, autoriza el acceso solo a **Vejat/MenuApp**. Selecciona ese repositorio y deja abierta la pantalla que muestra los recursos del Blueprint. [Panel de Render](https://dashboard.render.com/)
-
-3. **Avísame cuando veas los recursos del Blueprint.** Revisaremos el costo de la API y PostgreSQL antes de pulsar **Deploy Blueprint**. Contraseñas, tokens y códigos de verificación se quedan fuera del chat.
-
-## 2. Lo que haré yo
-
-1. **Completado.** Revisé y subí el código al repositorio privado. La base de pruebas del PC y las contraseñas locales quedaron fuera.
-2. Prepararé el despliegue con [render.yaml](render.yaml) para que Render construya la web y la API, conecte un PostgreSQL privado y aplique la migración. Verificaré el precio del servicio y de la base para que apruebes el gasto antes de activarlos.
-3. Una vez publicado, verificaré la dirección HTTPS, compilaré el APK para esa dirección e instalaré la actualización cuando el Moto esté conectado. Configuraré las cuentas individuales del personal y cargaré la carta cuando tengamos los datos del local.
-
-## 3. Lo que podría volver a requerir tu intervención
-
-- **Autorizar a Render a leer el repositorio privado.** Te indicaré su nombre una vez creado. Si GitHub pide acceso, selecciona solo el repositorio de MenuApp. [Conectar GitHub a Render](https://render.com/docs/git-provider)
-- **Aprobar el costo.** El restaurante prueba gratis. Nosotros cubrimos los recursos contratados. Los 14 días del piloto son nuestro acuerdo con el local. Render sigue cobrando mientras mantengamos los recursos activos.
-- **Presupuesto de referencia.** El Blueprint usa una instancia web de USD 7 al mes y PostgreSQL de USD 6 al mes con 1 GB de disco. Presupuesta hasta USD 0,30 mensuales para ese almacenamiento y revisa el importe en Render. Con 14 días de recursos activos, el costo base estimado es de unos USD 6,20, antes de impuestos o excedentes de uso. [Precios de Render](https://render.com/pricing)
-- **Preparar el ensayo en el local.** Necesitaremos la carta, los precios, el número de mesas del piloto y los nombres de quienes tendrán acceso. Para la prueba final, conecta el Moto cuando instalemos el APK y luego apaga el PC. Desde otro celular, escanea un QR, haz un pedido, solicita la boleta y confirma un pago simulado desde el Moto.
-
-El día 1 empieza cuando el local puede operar con sus propios datos y el flujo ya pasó el ensayo. Al día 14 revisamos el resultado y decidimos si mantener el servicio o coordinar su cierre.
+El código ya está listo para estos pasos, pero el servicio todavía no está publicado: Render debe tener acceso al repositorio y alguien con acceso a la cuenta debe iniciar el despliegue. No es necesario agregar tarjeta para crear los recursos gratuitos; confirma que el panel muestre **Free** antes de aceptar.

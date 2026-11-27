@@ -36,7 +36,7 @@ void main() {
         await tester.pumpWidget(const MaterialApp(home: RestaurantPage()));
         await tester.pumpAndSettle();
         expect(find.text('Inicio'), findsOneWidget);
-        expect(find.text('Administrar platos'), findsOneWidget);
+        expect(find.text('Platos'), findsOneWidget);
         expect(find.text('Iniciar sesión'), findsNothing);
         await tester.tap(find.byTooltip('Cerrar sesión'));
         await tester.pumpAndSettle();

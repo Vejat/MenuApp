@@ -38,6 +38,7 @@ dependencies:
   qr_flutter: ^4.1.0
   flutter_secure_storage: 9.2.4
   web: ^1.1.2
+  google_fonts: ^9.0.0
 
 dev_dependencies:
   flutter_test:

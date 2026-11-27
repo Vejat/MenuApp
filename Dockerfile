@@ -2,7 +2,7 @@ FROM debian:bookworm-slim AS web-build
 ARG FLUTTER_VERSION=3.47.5
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git unzip xz-utils && rm -rf /var/lib/apt/lists/*
 RUN git clone --branch "${FLUTTER_VERSION}" --depth 1 https://github.com/flutter/flutter.git /opt/flutter
-ENV PATH="/opt/flutter/bin:${PATH}" CI=true FLUTTER_SUPPRESS_ANALYTICS=true
+ENV PATH="/opt/flutter/bin:${PATH}" CI=true FLUTTER_SUPPRESS_ANALYTICS=true TAR_OPTIONS=--no-same-owner
 WORKDIR /src
 COPY pubspec.yaml pubspec.lock ./
 RUN flutter pub get --enforce-lockfile

@@ -1,4 +1,7 @@
-import webpush from 'web-push';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const webpush = require('web-push');
 
 export async function configurePush(database) {
   await database.query(`CREATE TABLE IF NOT EXISTS push_config (id boolean PRIMARY KEY DEFAULT true, public_key text NOT NULL, private_key text NOT NULL, CHECK (id))`);

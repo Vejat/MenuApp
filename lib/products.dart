@@ -172,7 +172,7 @@ class _ProductEditorState extends State<ProductEditor> {
           enabled: !saving,
         ),
         DropdownButtonFormField<String>(
-          value: category,
+          initialValue: category,
           decoration: const InputDecoration(labelText: 'Categoría'),
           items: [
             for (final item in productCategories)

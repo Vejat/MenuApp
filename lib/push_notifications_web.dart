@@ -1,6 +1,8 @@
-import 'dart:js_util' as js;
+import 'dart:js_interop';
+
+@JS('menuAppEnablePush')
+external JSPromise<JSBoolean> _menuAppEnablePush(JSString token);
 
 Future<bool> subscribe(String token) async {
-  final promise = js.callMethod<Object?>(js.globalThis, 'menuAppEnablePush', [token]);
-  return await js.promiseToFuture<bool>(promise);
+  return (await _menuAppEnablePush(token.toJS).toDart).toDart;
 }
